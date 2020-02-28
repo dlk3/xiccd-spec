@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+
+#  Build RPMs in a podman container
+
+#  Copyright (C) 2020  David King <dave@daveking.com>
+#
+#  This program is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+SPECFILE="xiccd.spec"
+
+set -e
+
+#  Get the full path to the spec file
+SPECFILE=$(dirname "$(realpath "$0")")/$SPECFILE
+
+#  Parse the package name, version and release out of the spec file
+NAME=$(sed -n 's/^Name:[[:space:]]*//p' "$SPECFILE")
+VERSION=$(sed -n 's/^Version:[[:space:]]*//p' "$SPECFILE")
+RELEASE=$(sed -n 's/^Release:[[:space:]]*//;s/%{?dist}//p' "$SPECFILE")
+
+if [ $(cat /etc/hostname) == "fang.localdomain" ]; then
+	echo "Building $NAME in fedora-rpmbuild:30 container ..."
+	podman run --interactive --name=rpmbuild --rm --tty --volume=${HOME}:${HOME} localhost/fedora-rpmbuild:30 "$(realpath "$0")"
+	echo -e "\nBuilding $NAME in fedora-rpmbuild:31 container ..."
+	podman run --interactive --name=rpmbuild --rm --tty --volume=${HOME}:${HOME} localhost/fedora-rpmbuild:31 "$(realpath "$0")"
+	echo -e "\nTest installation of ${NAME}-${VERSION}-${RELEASE}.fc30.x86_64.rpm in fedora-rpmbuild:30 container ..."
+	podman run --interactive --name=rpmbuild --rm --tty --volume=${HOME}:${HOME} localhost/fedora-rpmbuild:30 dnf install -y ${HOME}/rpmbuild/RPMS/x86_64/${NAME}-${VERSION}-${RELEASE}.fc30.x86_64.rpm
+
+	echo -e "\nTest installation of ${NAME}-${VERSION}-${RELEASE}.fc31.x86_64.rpm in fedora-rpmbuild:31 container ..."
+	podman run --interactive --name=rpmbuild --rm --tty --volume=${HOME}:${HOME} localhost/fedora-rpmbuild:31 dnf install -y ${HOME}/rpmbuild/RPMS/x86_64/${NAME}-${VERSION}-${RELEASE}.fc31.x86_64.rpm
+else
+	echo -e "\nUpdate system software ..."
+	dnf -y upgrade
+	dnf -y install wget gcc-c++ make autoconf automake libX11-devel libXrandr-devel glib2-devel colord-devel
+
+	#  Get the source file
+	SOURCE0=$(sed -n 's/^Source0:[[:space:]]*//p' "$SPECFILE")
+	SOURCE0=$(echo "$SOURCE0" | sed "s/%{name}/${NAME}/;s/%{version}/${VERSION}/")
+	wget -O "${HOME}/rpmbuild/SOURCES/${SOURCE0}" "https://github.com/agalakhov/xiccd/archive/v${VERSION}.tar.gz"
+
+	#  Build the packages.  Try twice, in case of an Access Exception, which happens occasionally
+	if ! rpmbuild -ba "$SPECFILE"; then
+		echo -e "\nrpmbuild failed, retrying rpmbuild ..."
+		rpmbuild -ba "$SPECFILE"
+	fi
+
+	echo -e "\nCopying RPM files to host system ..."
+	mv ${HOME}/rpmbuild/RPMS/x86_64/${NAME}-${VERSION}-${RELEASE}.*.x86_64.rpm /home/dlk/rpmbuild/RPMS/x86_64/
+	mv ${HOME}/rpmbuild/SRPMS/${NAME}-${VERSION}-${RELEASE}.*.src.rpm /home/dlk/rpmbuild/SRPMS/
+fi

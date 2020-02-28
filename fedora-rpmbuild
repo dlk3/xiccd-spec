@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+
+#  Create Fedora podman images used for building RPMs
+#
+#  Copyright (C) 2020  David King <dave@daveking.com>
+#
+#  This program is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+#  Prereqs: "dnf install podman buildah skopeo jq"
+
+#  Get the list of tags available for the official fedora image
+readarray -t TAGLIST < <(skopeo inspect docker://docker.io/library/fedora | jq -r '.RepoTags[]')
+#  Remove any version tags that aren't a number
+for TAG in ${TAGLIST[@]}; do
+        if [[ $TAG =~ ^[0-9]+$ ]]; then
+                NEWLIST+=( "$TAG" )
+        fi
+done
+TAGLIST=("${NEWLIST[@]}")
+
+#  Get the tag that we want to use
+FEDORA_VERSION=""
+VER="$1"
+while [ "$FEDORA_VERSION" == "" ]; do
+	if [[ " ${TAGLIST[@]} " == *" $VER "* ]]; then
+		FEDORA_VERSION="$VER"
+	else
+		echo "Available Fedora Versions:"
+		echo ${TAGLIST[@]}
+		read -p "Please enter the version you want: " VER
+	fi
+done
+
+set -e
+
+echo "Creating working-copy container from docker.io/library/fedora:$FEDORA_VERSION image ..."
+CONTAINER=$(buildah from docker.io/library/fedora:$FEDORA_VERSION)
+buildah config --label maintainer="Dave King <dave@daveking.com>" $CONTAINER
+
+echo -e "\nAdding the RPMFusion repositories ..."
+buildah run $CONTAINER dnf install -y https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-${FEDORA_VERSION}.noarch.rpm https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-${FEDORA_VERSION}.noarch.rpm
+
+echo -e "\nUpgrading the installed software ..."
+buildah run $CONTAINER dnf upgrade -y 
+
+echo -e "\nInstalling RPM development tools ..."
+buildah run $CONTAINER dnf install -y rpm-build rpmdevtools
+
+echo -e "\nSetting up the ~/rpmbuild tree ..."
+buildah run $CONTAINER rpmdev-setuptree
+
+echo -e "\nCleaning out the dnf cache ..."
+buildah run $CONTAINER dnf clean all
+
+echo -e "\nSaving the localhost/fedora-rpmbuild:$FEDORA_VERSION container ..."
+if buildah images --quiet localhost/fedora-rpmbuild:$FEDORA_VERSION &>/dev/null; then
+        echo "Deleting previous version of this container ..."
+        buildah rmi localhost/fedora-rpmbuild:$FEDORA_VERSION
+fi
+echo "Committing the container ..."
+buildah commit --format docker $CONTAINER localhost/fedora-rpmbuild:$FEDORA_VERSION
+
+echo -e "\nRemoving the temporary work-copy container ..."
+buildah rm $CONTAINER
+
+echo -e "\nAll done."
