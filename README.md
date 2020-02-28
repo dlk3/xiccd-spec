@@ -9,8 +9,7 @@ xiccd is a simple bridge between colord and X. It does the following tasks:
 
 xiccd is used to enable the xfce4-color-settings tool in the XFCE
 desktop.  This allows for simple configuration of the color profiles 
-that the colord daemon loads for displays, printers and scanners attached
-to these systems.
+that the colord daemon loads for displays attached to these systems.
 
 This project contains a SPEC file for building xiccd RPMs that can be
 used with the Fedora Linux distribution.  It also contains the scripts
