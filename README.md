@@ -15,6 +15,13 @@ This project contains a SPEC file for building xiccd RPMs that can be
 used with the Fedora Linux distribution.  It also contains the scripts
 that are used to build these RPMs in a podman container.
 
+The RPMs that I built are available in the dlk/xiccd Fedora COPR repository.
+To enable this repository and install the xiccd package do:
+```
+$ sudo dnf copr enable dlk/xiccd
+$ sudo dnf install xiccd
+```
+
 Copyright (C) 2020  David King <dave@daveking.com>
 
 This program is free software: you can redistribute it and/or modify
