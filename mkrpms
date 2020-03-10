@@ -28,17 +28,13 @@ SPECFILE=$(dirname "$(realpath "$0")")/$SPECFILE
 NAME=$(sed -n 's/^Name:[[:space:]]*//p' "$SPECFILE")
 VERSION=$(sed -n 's/^Version:[[:space:]]*//p' "$SPECFILE")
 RELEASE=$(sed -n 's/^Release:[[:space:]]*//;s/%{?dist}//p' "$SPECFILE")
+ARCH=$(sed -n 's/^BuildArch:[[:space:]]*//p' "$SPECFILE")
 
 if [ $(cat /etc/hostname) == "fang.localdomain" ]; then
-	echo "Building $NAME in fedora-rpmbuild:30 container ..."
-	podman run --interactive --name=rpmbuild --rm --tty --volume=${HOME}:${HOME} localhost/fedora-rpmbuild:30 "$(realpath "$0")"
 	echo -e "\nBuilding $NAME in fedora-rpmbuild:31 container ..."
 	podman run --interactive --name=rpmbuild --rm --tty --volume=${HOME}:${HOME} localhost/fedora-rpmbuild:31 "$(realpath "$0")"
-	echo -e "\nTest installation of ${NAME}-${VERSION}-${RELEASE}.fc30.x86_64.rpm in fedora-rpmbuild:30 container ..."
-	podman run --interactive --name=rpmbuild --rm --tty --volume=${HOME}:${HOME} localhost/fedora-rpmbuild:30 dnf install -y ${HOME}/rpmbuild/RPMS/x86_64/${NAME}-${VERSION}-${RELEASE}.fc30.x86_64.rpm
-
-	echo -e "\nTest installation of ${NAME}-${VERSION}-${RELEASE}.fc31.x86_64.rpm in fedora-rpmbuild:31 container ..."
-	podman run --interactive --name=rpmbuild --rm --tty --volume=${HOME}:${HOME} localhost/fedora-rpmbuild:31 dnf install -y ${HOME}/rpmbuild/RPMS/x86_64/${NAME}-${VERSION}-${RELEASE}.fc31.x86_64.rpm
+	echo -e "\nTest installation of ${NAME}-${VERSION}-${RELEASE}.fc31.${ARCH}.rpm in fedora-rpmbuild:31 container ..."
+	podman run --interactive --name=rpmbuild --rm --tty --volume=${HOME}:${HOME} localhost/fedora-rpmbuild:31 dnf install -y ${HOME}/rpmbuild/RPMS/${ARCH}/${NAME}-${VERSION}-${RELEASE}.fc31.${ARCH}.rpm
 else
 	echo -e "\nUpdate system software ..."
 	dnf -y upgrade
@@ -56,6 +52,6 @@ else
 	fi
 
 	echo -e "\nCopying RPM files to host system ..."
-	mv ${HOME}/rpmbuild/RPMS/x86_64/${NAME}-${VERSION}-${RELEASE}.*.x86_64.rpm /home/dlk/rpmbuild/RPMS/x86_64/
+	mv ${HOME}/rpmbuild/RPMS/${ARCH}/${NAME}-${VERSION}-${RELEASE}.*.${ARCH}.rpm /home/dlk/rpmbuild/RPMS/${ARCH}/
 	mv ${HOME}/rpmbuild/SRPMS/${NAME}-${VERSION}-${RELEASE}.*.src.rpm /home/dlk/rpmbuild/SRPMS/
 fi

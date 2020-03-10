@@ -18,7 +18,7 @@ that are used to build these RPMs in a podman container.
 The RPMs that I built are available in the dlk/xiccd Fedora COPR repository.
 To enable this repository and install the xiccd package do:
 ```
-$ sudo dnf copr enable dlk/xiccd
+$ sudo dnf copr enable dlk/rpms
 $ sudo dnf install xiccd
 ```
 
